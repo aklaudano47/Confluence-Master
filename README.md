@@ -1,42 +1,68 @@
 # Confluence Signal Engine — Real Gaussian + Real Hull + ATR Trail (Pine Script v6)
 
-A modular TradingView indicator framework that generates **bull/bear confluence scores** from atomic conditions and overlays customizable, non-repainting signals on price charts.
+A modular, **non-repainting TradingView indicator** that calculates bull/bear confluence scores by combining multiple filtered conditions and overlays signals and custom colored candles directly on the chart.
+
+---
 
 ## Core Features
-- **Recursive Gaussian Weighted MA (GWMA)** for adaptive smoothing
-- **Real Hull Moving Average (HMA)** for momentum regime detection
-- **ATR Trail** for trend state initialization
-- Configurable **5-of-6 confluence threshold**
-- Early-bar safety guards to prevent phantom signals
+
+- **Real Gaussian Weighted Moving Average (GWMA)** for adaptive smoothing  
+- **Real Hull Moving Average (HMA)** for momentum regime detection  
+- **ATR Trail** to define trend direction reliably  
+- **Configurable confluence score threshold** (up to 6)  
+- **Custom candles & background tinting options**  
+- Signal markers and alert conditions built-in  
+- Logic designed for reproducible research and live use  
+
+---
 
 ## Confluence Logic (Per Side)
-Each regime evaluates 6 conditions:
-1. ATR trail trend state (bull/bear)
-2. Candle direction (close > open / close < open)
-3. Rising volume vs previous bar
-4. Price position vs Gaussian MA
-5. Price position vs Hull MA
-6. Prior-bar momentum state
 
-A signal prints when the selected threshold (≥5 by default) is met.
+Each bar is evaluated across 6 conditions:
 
-## Performance Philosophy
-Designed to behave like a **real derivatives research tool**:
-- Uses only current and past bar data
-- No multi-timeframe lookahead or repainting `security()` calls
-- Logic is auditable, extendable, and optimized for live execution
+1. ATR trend state (bull / bear)  
+2. Price candle direction  
+3. Rising volume  
+4. Price above/below Gaussian MA  
+5. Price above/below Hull MA  
+6. Trend direction of Hull MA
 
-## Usage
-1. Open TradingView
-2. Launch **Pine Editor**
-3. Paste the script
-4. Click **Save**
-5. Publish as **Idea** or **Public Script** to share your work
+A *bull* or *bear* signal is shown when the confluence count meets or exceeds the specified threshold.
+
+---
+
+## Designed for Real Market Use
+
+- Uses only current & historical bar data  
+- Avoids lookahead bias and repainting functions (`security()`)  
+- Fully auditable, extendable, and optimized for TradingView v6  
+- Includes alerts, overlays, and UX toggles for flexible usage
+
+---
+
+## How to Use
+
+1. Open **TradingView**  
+2. Open the **Pine Editor** panel  
+3. Paste the script  
+4. Save & **Add to Chart**  
+5. Optionally publish to your TradingView ideas or scripts
+
+If you want others to view the script on TradingView, you can publish it as an *Idea*, *Protected Script*, *Invite-Only*, or *Public Script* there. :contentReference[oaicite:0]{index=0}
+
+---
 
 ## Ideal For
-- Crypto and commodity derivatives traders
-- Indicator prototyping and rule-based signal research
-- Institutional or academic confluence validation
+
+- Crypto / commodities derivatives traders  
+- Researchers needing modular confluence signals  
+- Indicator prototyping and validation  
+- Quantitative analysis workflows
+
+---
 
 ## License
-MIT — Free to audit, extend, and experiment with.
+
+MIT License — free to audit, extend, and experiment with.
+
+---
