@@ -1,0 +1,147 @@
+//@version=6
+indicator("Confluence Signal Engine — Original 6 (Real Gaussian + Real Hull) — v6 Full Control", overlay=true, max_labels_count=500)
+
+// === Inputs ===
+atrPeriod = input.int(21, "ATR Period", minval=1)
+atrMult   = input.float(6.3, "ATR Multiplier", step=0.1)
+gaussLen  = input.int(55, "Gaussian Length (GWMA)", minval=2)
+hmaLen    = input.int(21, "Hull Length", minval=2)
+thr       = input.int(5,  "Confluence Threshold (≥)", minval=1, maxval=6)
+
+// === Full-control coloring toggles ===
+useOverlayCandles = input.bool(true,  "Draw custom colored candles (hide base symbol candles)")
+tieNeutral        = input.bool(true,  "Neutral color when bull == bear")
+paintBackground   = input.bool(false, "Tint background with confluence color")
+
+// === Real Gaussian (GWMA) ===
+f_gaussian(src, length) =>
+    float sigma = length / 6.0
+    float sum   = 0.0
+    float wsum  = 0.0
+    int   wnd   = length
+    for i = 0 to wnd - 1
+        float w   = math.exp(-(i * i) / (2.0 * sigma * sigma))
+        float val = nz(src[i])
+        sum  += val * w
+        wsum += w
+    wsum != 0.0 ? sum / wsum : na
+
+// === Real Hull MA ===
+f_hma(src, length) =>
+    int half  = math.max(1, int(math.round(length / 2.0)))
+    int sqrtL = math.max(1, int(math.round(math.sqrt(length))))
+    float wmaf = ta.wma(src, length)
+    float wmah = ta.wma(src, half)
+    ta.wma(2.0 * wmah - wmaf, sqrtL)
+
+// === ATR Trail (trend state) ===
+float atr  = ta.atr(atrPeriod)
+float loss = atr * atrMult
+
+var float trail = na
+if barstate.isfirst
+    trail := close - loss
+else
+    if close > trail[1] and close[1] > trail[1]
+        trail := math.max(trail[1], close - loss)
+    else if close < trail[1] and close[1] < trail[1]
+        trail := math.min(trail[1], close + loss)
+    else if close > trail[1]
+        trail := close - loss
+    else
+        trail := close + loss
+
+// Direction state
+var int dir = 0
+if close > trail and close[1] <= trail
+    dir := 1
+else if close < trail and close[1] >= trail
+    dir := -1
+
+bool isBull = dir == 1
+bool isBear = dir == -1
+
+// === Filters (real) ===
+float gauss = f_gaussian(close, gaussLen)
+float hull  = f_hma(close, hmaLen)
+
+// === Atomic conditions (original 6 per side) ===
+bool candleUp = close > open
+bool candleDn = close < open
+bool volUp    = volume > volume[1]
+
+bool overG  = not na(gauss) and close > gauss
+bool underG = not na(gauss) and close < gauss
+
+bool overH  = not na(hull)  and close > hull
+bool underH = not na(hull)  and close < hull
+
+bool hUp = not na(hull) and hull > hull[1]
+bool hDn = not na(hull) and hull < hull[1]
+
+// === Confluence sums (6 each) ===
+int bullConfluence = (isBull?1:0) + (candleUp?1:0) + (volUp?1:0) + (overG?1:0) + (overH?1:0) + (hUp?1:0)
+int bearConfluence = (isBear?1:0) + (candleDn?1:0) + (volUp?1:0) + (underG?1:0) + (underH?1:0) + (hDn?1:0)
+
+// === Fade helper(s) ===
+f_clamp(x, lo, hi) =>
+    x < lo ? lo : x > hi ? hi : x
+
+fadeTransp(score, thr_) =>
+    pct  = math.min(1.0, math.max(0.0, score / thr_))
+    traw = 80 - int(math.round(pct * 60.0))   // 80 weak → 20 strong
+    int(f_clamp(traw, 20, 80))
+
+// === Build final candle color (series) ===
+bool fullBull = bullConfluence >= thr
+bool fullBear = bearConfluence >= thr
+bool softBull = bullConfluence > bearConfluence
+bool softBear = bearConfluence > bullConfluence
+bool isTie    = bullConfluence == bearConfluence
+
+color bullBase = color.green
+color bearBase = color.red
+color tieBase  = color.gray
+
+color barCol = na
+if fullBull
+    barCol := bullBase
+else if fullBear
+    barCol := bearBase
+else if softBull
+    barCol := color.new(bullBase, fadeTransp(bullConfluence, thr))
+else if softBear
+    barCol := color.new(bearBase,  fadeTransp(bearConfluence,  thr))
+else if tieNeutral and isTie
+    barCol := color.new(tieBase, 5)
+
+// === Plots (trend/filters) ===
+plot(trail, "ATR Trail", color=color.gray)
+plot(gauss, "Real Gaussian (GWMA)", color=color.orange)
+plot(hull,  "Real Hull MA",         color=color.blue)
+
+// === Global draw calls (no local-scope drawing) ===
+
+// Background tint (off by default)
+color bgCol = paintBackground and not na(barCol) ? color.new(barCol, 5) : na
+bgcolor(color=bgCol)
+
+// Default candles recolor when overlay is OFF
+color defaultBarColor = useOverlayCandles ? na : barCol
+barcolor(color=defaultBarColor)
+
+// Overlay candles: always called once; disabled with color=na when toggle is OFF
+color overlayBody   = useOverlayCandles ? barCol : na
+color overlayWick   = useOverlayCandles ? barCol : na
+color overlayBorder = useOverlayCandles ? barCol : na
+plotcandle(open=open, high=high, low=low, close=close,
+           color=overlayBody, wickcolor=overlayWick, bordercolor=overlayBorder, title="Overlay Candles")
+
+// === Optional signal markers (same as before) ===
+plotshape(fullBull, title="Bull Signal", style=shape.triangleup,   location=location.belowbar, size=size.tiny, color=color.lime)
+plotshape(fullBear, title="Bear Signal", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.red)
+
+// === Alerts ===
+alertcondition(fullBull, "Bull Confluence ≥ Threshold", "Bull confluence ≥ {{input:thr}} on {{ticker}} ({{interval}})")
+alertcondition(fullBear, "Bear Confluence ≥ Threshold", "Bear confluence ≥ {{input:thr}} on {{ticker}} ({{interval}})")
+
